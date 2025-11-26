@@ -1,0 +1,4 @@
+solady/=lib/solady/src/
+chainlink/=lib/foundry-chainlink-toolkit/src/
+superfluid/=lib/superfluid-protocol-monorepo/packages/ethereum-contracts/contracts/
+@openzeppelin-v5/=lib/openzeppelin-contracts-v5/
