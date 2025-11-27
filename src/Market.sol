@@ -56,11 +56,13 @@ contract Market is
     /// @param buffer_ The buffer ratio for liquidity management
     /// @param otmHalf_ The out-of-the-money half-life parameter
     /// @param warmUpPeriod_ The warm-up period for positions
+    /// @param cap_ The cap for the market
     /// @param owner_ The address of the contract owner
     function initialize(
         address rateModel_,
         address priceOracle_,
         uint256 buffer_,
+        uint256 cap_,
         uint256 otmHalf_,
         uint256 warmUpPeriod_,
         address owner_
@@ -78,6 +80,8 @@ contract Market is
         $.priceOracle = ISentinelOracle(priceOracle_);
 
         $.buffer = buffer_;
+        $.cap = cap_;
+
         $.otmHalf = otmHalf_;
         $.warmUpPeriod = warmUpPeriod_;
 
@@ -118,6 +122,12 @@ contract Market is
 
         MarketStorage storage $ = _getMarketStorage();
         $.buffer = newBuffer_;
+    }
+
+    /// @inheritdoc IMarket
+    function setCap(uint256 newCap_) external onlyOwner {
+        MarketStorage storage $ = _getMarketStorage();
+        $.cap = newCap_;
     }
 
     /// @inheritdoc IMarket
@@ -415,6 +425,12 @@ contract Market is
     }
 
     /// @inheritdoc IMarket
+    function cap() external view override returns (uint256) {
+        MarketStorage storage $ = _getMarketStorage();
+        return $.cap;
+    }
+
+    /// @inheritdoc IMarket
     function otmHalf() external view override returns (uint256) {
         MarketStorage storage $ = _getMarketStorage();
         return $.otmHalf;
@@ -469,6 +485,11 @@ contract Market is
         override
         whenLpDepositNotPaused
     {
+        MarketStorage storage $ = _getMarketStorage();
+        if (totalAssets() + assets_ > $.cap) {
+            revert CapExceeded(assets_, totalAssets() + assets_, $.cap);
+        }
+
         super._deposit(by_, to_, assets_, shares_);
     }
 

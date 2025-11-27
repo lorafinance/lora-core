@@ -4,12 +4,7 @@ pragma solidity ^0.8.30;
 import {Test} from "forge-std/Test.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {LibClone} from "solady/utils/LibClone.sol";
-import {
-    ISuperfluid,
-    ISuperToken,
-    ISuperTokenFactory,
-    IERC20Metadata
-} from "superfluid/interfaces/superfluid/ISuperfluid.sol";
+import {ISuperfluid, ISuperToken, IERC20Metadata} from "superfluid/interfaces/superfluid/ISuperfluid.sol";
 import {ISuperApp} from "superfluid/interfaces/superfluid/ISuperApp.sol";
 import {SuperTokenV1Library} from "superfluid/apps/SuperTokenV1Library.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
@@ -42,6 +37,7 @@ contract MarketTest is Test {
 
     // assuming asset has 18 decimals
     uint256 constant MARKET_BUFFER = 0.1e18; // 10% buffer; protects solvency on withdrawals
+    uint256 constant MARKET_CAP = 1000000e18; // Market cap for deposits
     uint256 constant MARKET_OTM_HALF = 0.35e18; // OTM discount h: m(δ) = h / (h + δ)
     uint256 constant MARKET_WARM_UP_PERIOD = 15 minutes;
 
@@ -88,7 +84,15 @@ contract MarketTest is Test {
         bytes memory immutableArgs = abi.encode(address(superToken));
         bytes memory initializerData = abi.encodeCall(
             Market.initialize,
-            (address(rateModel), address(priceOracle), MARKET_BUFFER, MARKET_OTM_HALF, MARKET_WARM_UP_PERIOD, OWEN)
+            (
+                address(rateModel),
+                address(priceOracle),
+                MARKET_BUFFER,
+                MARKET_CAP,
+                MARKET_OTM_HALF,
+                MARKET_WARM_UP_PERIOD,
+                OWEN
+            )
         );
 
         vm.prank(OWEN);
@@ -115,6 +119,7 @@ contract MarketTest is Test {
         assertEq(address(market.rateModel()), address(rateModel));
         assertEq(address(market.priceOracle()), address(priceOracle));
         assertEq(market.buffer(), MARKET_BUFFER);
+        assertEq(market.cap(), MARKET_CAP);
         assertEq(market.otmHalf(), MARKET_OTM_HALF);
         assertEq(market.owner(), OWEN);
         assertFalse(market.isLpDepositPaused());
@@ -125,7 +130,13 @@ contract MarketTest is Test {
     function testMarketInitialization_Reverts_AlreadyInitialized() public {
         vm.expectRevert();
         market.initialize(
-            address(rateModel), address(priceOracle), MARKET_BUFFER, MARKET_OTM_HALF, MARKET_WARM_UP_PERIOD, OWEN
+            address(rateModel),
+            address(priceOracle),
+            MARKET_BUFFER,
+            MARKET_CAP,
+            MARKET_OTM_HALF,
+            MARKET_WARM_UP_PERIOD,
+            OWEN
         );
     }
 
@@ -134,7 +145,13 @@ contract MarketTest is Test {
 
         vm.expectRevert();
         marketImpl.initialize(
-            address(rateModel), address(priceOracle), MARKET_BUFFER, MARKET_OTM_HALF, MARKET_WARM_UP_PERIOD, OWEN
+            address(rateModel),
+            address(priceOracle),
+            MARKET_BUFFER,
+            MARKET_CAP,
+            MARKET_OTM_HALF,
+            MARKET_WARM_UP_PERIOD,
+            OWEN
         );
     }
 
@@ -151,6 +168,18 @@ contract MarketTest is Test {
         vm.startPrank(CHARLIE);
         vm.expectRevert();
         market.deposit(500e18, CHARLIE);
+        vm.stopPrank();
+    }
+
+    function testDeposit_ExceedsCap() public assertNotJailed {
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, 2 * MARKET_CAP);
+
+        vm.startPrank(ALICE);
+        market.deposit(MARKET_CAP, ALICE);
+
+        vm.expectRevert(abi.encodeWithSelector(IMarket.CapExceeded.selector, 1e18, MARKET_CAP + 1e18, MARKET_CAP));
+        market.deposit(1e18, ALICE);
         vm.stopPrank();
     }
 
@@ -739,6 +768,16 @@ contract MarketTest is Test {
         market.setBuffer(newBuffer);
     }
 
+    function testSetCap() public assertNotJailed {
+        uint256 newCap = 2_000_000e18;
+
+        vm.prank(OWEN);
+        market.setCap(newCap);
+        assertEq(market.cap(), newCap);
+    }
+
+
+
     function testMaxWithdrawableNoOpenPositions() public assertNotJailed {
         vm.prank(ALICE);
         market.deposit(1000e18, ALICE);
@@ -941,23 +980,6 @@ contract MarketTest is Test {
         assertEq(market.balanceOf(ALICE), depositAmount_);
     }
 
-    function testFuzz_DepositDifferentUsers(address user_, uint256 depositAmount_) public assertNotJailed {
-        vm.assume(user_ != address(0) && user_ != ALICE && user_ != BOB && user_ != CHARLIE && user_ != OWEN);
-        vm.assume(depositAmount_ > 0 && depositAmount_ <= 1_000_000e18);
-
-        vm.prank(OWEN);
-        faucet.superMint(user_, depositAmount_);
-
-        vm.prank(user_);
-        superToken.approve(address(market), type(uint256).max);
-
-        vm.prank(user_);
-        market.deposit(depositAmount_, user_);
-
-        assertEq(market.totalAssets(), depositAmount_);
-        assertEq(market.balanceOf(user_), depositAmount_);
-    }
-
     function testFuzz_MultipleDeposits(uint256 numberOfDeposits) public assertNotJailed {
         vm.assume(numberOfDeposits > 0 && numberOfDeposits <= 1000);
 
@@ -1004,30 +1026,200 @@ contract MarketTest is Test {
         assertEq(market.balanceOf(ALICE), depositAmount_ - withdrawAmount_);
     }
 
-    function testFuzz_WithdrawDifferentUsers(address user_, uint256 depositAmount_, uint256 withdrawAmount_)
+    function testFuzz_MultipleWithdrawals(uint256 depositAmount_, uint256 numberOfWithdrawals) public assertNotJailed {
+        vm.assume(depositAmount_ > 0 && depositAmount_ <= 1_000_000e18);
+        vm.assume(numberOfWithdrawals > 0 && numberOfWithdrawals <= 1000);
+
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, depositAmount_);
+
+        vm.prank(ALICE);
+        superToken.approve(address(market), type(uint256).max);
+
+        vm.prank(ALICE);
+        market.deposit(depositAmount_, ALICE);
+
+        uint256 totalWithdrawn;
+        for (uint256 i; i < numberOfWithdrawals; ++i) {
+            uint256 withdrawAmount = (i + 1) * 1e18;
+
+            if (
+                totalWithdrawn + withdrawAmount
+                    > depositAmount_ - FixedPointMathLib.mulWad(depositAmount_, market.buffer())
+            ) {
+                break;
+            }
+
+            vm.prank(ALICE);
+            market.withdraw(withdrawAmount, ALICE, ALICE);
+
+            totalWithdrawn += withdrawAmount;
+        }
+
+        assertEq(market.totalAssets(), depositAmount_ - totalWithdrawn);
+        assertEq(market.balanceOf(ALICE), depositAmount_ - totalWithdrawn);
+    }
+
+    function testFuzz_OpenPosition(uint256 notional_, uint256 delta_) public assertNotJailed {
+        vm.assume(notional_ > 0.0001e18 && notional_ <= 1000e18);
+        vm.assume(delta_ >= 0 && delta_ <= 1e18);
+
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, 1_000_000e18);
+
+        vm.prank(ALICE);
+        superToken.approve(address(market), type(uint256).max);
+
+        vm.prank(ALICE);
+        market.deposit(1_000_000e18, ALICE);
+
+        int96 expectedFlowRate = market.previewFlowRate(notional_, delta_);
+
+        vm.prank(BOB);
+        uint256 positionId = market.openPosition(notional_, delta_);
+
+        PositionLib.Position memory position = market.positions(positionId);
+
+        assertEq(position.owner, BOB);
+        assertEq(position.notional, notional_);
+        assertEq(position.flowRate, expectedFlowRate);
+        assertEq(position.state, PositionLib.POSITION_OPEN_STATE_TAG);
+        assertEq(market.lockedNotional(), notional_);
+    }
+
+    function testFuzz_OpenMultiplePositions(uint256 notional_, uint256 delta_, uint256 numberOfPositions)
         public
         assertNotJailed
     {
-        vm.assume(user_ != address(0) && user_ != ALICE && user_ != BOB && user_ != CHARLIE && user_ != OWEN);
-        vm.assume(depositAmount_ > 0 && depositAmount_ <= 1_000_000e18);
-        vm.assume(
-            withdrawAmount_ > 0
-                && withdrawAmount_ <= depositAmount_ - FixedPointMathLib.mulWad(depositAmount_, market.buffer())
-        );
+        notional_ = bound(notional_, 0.0001e18 + 1, 1000e18);
+        delta_ = bound(delta_, 0, 1e18);
+        numberOfPositions = bound(numberOfPositions, 1, 100);
 
         vm.prank(OWEN);
-        faucet.superMint(user_, depositAmount_);
+        faucet.superMint(ALICE, 1_000_000e18);
 
-        vm.prank(user_);
+        vm.prank(ALICE);
         superToken.approve(address(market), type(uint256).max);
 
-        vm.prank(user_);
-        market.deposit(depositAmount_, user_);
+        vm.prank(ALICE);
+        market.deposit(1_000_000e18, ALICE);
 
-        vm.prank(user_);
-        market.withdraw(withdrawAmount_, user_, user_);
+        uint256 totalNotional;
+        for (uint256 i; i < numberOfPositions; ++i) {
+            vm.prank(BOB);
+            uint256 positionId = market.openPosition(notional_, delta_);
 
-        assertEq(market.totalAssets(), depositAmount_ - withdrawAmount_);
-        assertEq(market.balanceOf(user_), depositAmount_ - withdrawAmount_);
+            PositionLib.Position memory position = market.positions(positionId);
+
+            assertEq(position.owner, BOB);
+            assertEq(position.notional, notional_);
+            assertEq(position.state, PositionLib.POSITION_OPEN_STATE_TAG);
+
+            totalNotional += notional_;
+        }
+
+        assertEq(market.lockedNotional(), totalNotional);
+    }
+
+    function testFuzz_OpenPosition_Reverts_InsufficientLiquidity(uint256 notional_) public assertNotJailed {
+        vm.assume(notional_ > 10e18 && notional_ <= 1000e18);
+
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, 10e18);
+
+        vm.prank(ALICE);
+        superToken.approve(address(market), type(uint256).max);
+
+        vm.prank(ALICE);
+        market.deposit(10e18, ALICE);
+
+        vm.prank(BOB);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IMarket.InsufficientLiquidity.selector,
+                notional_,
+                10e18 - FixedPointMathLib.mulWad(10e18, MARKET_BUFFER)
+            )
+        );
+        market.openPosition(notional_, 0);
+    }
+
+    function testFuzz_ClosePosition(uint256 notional_, uint256 delta_, uint256 timeTravel_) public assertNotJailed {
+        notional_ = bound(notional_, 0.0001e18 + 1, 1000e18);
+        delta_ = bound(delta_, 0, 1e18);
+        timeTravel_ = bound(timeTravel_, 1 days, 30 days);
+
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, 1_000_000e18);
+
+        vm.prank(ALICE);
+        superToken.approve(address(market), type(uint256).max);
+
+        vm.prank(ALICE);
+        market.deposit(1_000_000e18, ALICE);
+
+        vm.prank(BOB);
+        uint256 positionId = market.openPosition(notional_, delta_);
+
+        vm.warp(block.timestamp + timeTravel_);
+        mockFeed.setPrice(2500e18);
+
+        uint256 expectedPayout = market.previewPayout(positionId);
+
+        vm.prank(BOB);
+        uint256 payout = market.closePosition(positionId);
+
+        PositionLib.Position memory position = market.positions(positionId);
+
+        assertEq(position.state, PositionLib.POSITION_CLOSED_STATE_TAG);
+        assertEq(payout, expectedPayout);
+        assertEq(market.lockedNotional(), 0);
+    }
+
+    function testFuzz_CloseMultiplePositions(
+        uint256 notional_,
+        uint256 delta_,
+        uint256 numberOfPositions,
+        uint256 timeTravel_
+    ) public assertNotJailed {
+        notional_ = bound(notional_, 0.0001e18 + 1, 1000e18);
+        delta_ = bound(delta_, 0, 1e18);
+        numberOfPositions = bound(numberOfPositions, 1, 50);
+        timeTravel_ = bound(timeTravel_, 1 days, 30 days);
+
+        vm.prank(OWEN);
+        faucet.superMint(ALICE, 1_000_000e18);
+
+        vm.prank(ALICE);
+        superToken.approve(address(market), type(uint256).max);
+
+        vm.prank(ALICE);
+        market.deposit(1_000_000e18, ALICE);
+
+        uint256[] memory positionIds = new uint256[](numberOfPositions);
+        for (uint256 i; i < numberOfPositions; ++i) {
+            vm.prank(BOB);
+            uint256 positionId = market.openPosition(notional_, delta_);
+            positionIds[i] = positionId;
+        }
+
+        vm.warp(block.timestamp + timeTravel_);
+        mockFeed.setPrice(2500e18);
+
+        for (uint256 i; i < numberOfPositions; ++i) {
+            uint256 positionId = positionIds[i];
+            uint256 expectedPayout = market.previewPayout(positionId);
+
+            vm.prank(BOB);
+            uint256 payout = market.closePosition(positionId);
+
+            PositionLib.Position memory position = market.positions(positionId);
+
+            assertEq(position.state, PositionLib.POSITION_CLOSED_STATE_TAG);
+            assertEq(payout, expectedPayout);
+            assertEq(market.lockedNotional(), notional_ * (numberOfPositions - i - 1));
+        }
+
+        assertEq(market.lockedNotional(), 0);
     }
 }

@@ -28,6 +28,7 @@ contract DeployScript is Script {
 
     // assuming asset has 18 decimals
     uint256 constant MARKET_BUFFER = 0.1e18; // 10% buffer; protects solvency on withdrawals
+    uint256 constant MARKET_CAP = 10_000e18; // Market cap for deposits
     uint256 constant MARKET_OTM_HALF = 0.35e18; // OTM discount h: m(δ) = h / (h + δ)
     uint256 constant MARKET_WARM_UP_PERIOD = 15 minutes;
 
@@ -79,7 +80,15 @@ contract DeployScript is Script {
         bytes memory immutableArgs = abi.encode(address(faucet.SUPER_TOKEN()));
         bytes memory initializerData = abi.encodeCall(
             Market.initialize,
-            (address(rateModel), address(priceOracle), MARKET_BUFFER, MARKET_OTM_HALF, MARKET_WARM_UP_PERIOD, admin)
+            (
+                address(rateModel),
+                address(priceOracle),
+                MARKET_BUFFER,
+                MARKET_CAP,
+                MARKET_OTM_HALF,
+                MARKET_WARM_UP_PERIOD,
+                admin
+            )
         );
 
         vm.startBroadcast(deployerPrivateKey);

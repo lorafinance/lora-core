@@ -24,6 +24,7 @@ interface IMarket is IMarketGuard {
     error NotionalZero();
     error FlowRateZero();
     error FlowRateTooHigh();
+    error CapExceeded(uint256 given, uint256 totalAfterDeposit, uint256 cap);
     error InsufficientLiquidity(uint256 requested, uint256 available);
     error FailedToOpenPosition(uint256 notional, uint256 delta);
     error FailedToClosePosition(uint256 positionId);
@@ -49,6 +50,11 @@ interface IMarket is IMarketGuard {
     /// @dev Only callable by the market owner
     /// @param newBuffer_ The new buffer value in WAD (1e18) where 1e18 = 100% and must be <= 1e18
     function setBuffer(uint256 newBuffer_) external;
+
+    /// @notice Set a new cap for the market
+    /// @dev Only callable by the market owner
+    /// @param newCap_ The new cap value for the market deposits
+    function setCap(uint256 newCap_) external;
 
     /// @notice Set a new out-of-the-money half value for the market
     /// @dev Only callable by the market owner
@@ -90,6 +96,10 @@ interface IMarket is IMarketGuard {
     /// @notice Get the buffer value used in the market
     /// @return buffer The buffer value in WAD (1e18) where 1e18 = 100%
     function buffer() external view returns (uint256);
+
+    /// @notice Get the cap value used in the market
+    /// @return cap The cap value for deposits in the market
+    function cap() external view returns (uint256);
 
     /// @notice Get the out-of-the-money half value used in the market
     /// @return otmHalf The out-of-the-money half value in WAD (1e18) where 1e18 = 100%

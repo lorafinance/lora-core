@@ -15,6 +15,8 @@ abstract contract MarketStorageLayout {
         ISentinelOracle priceOracle;
 
         uint256 buffer;
+        uint256 cap;
+
         uint256 otmHalf;
         uint256 warmUpPeriod;
 
