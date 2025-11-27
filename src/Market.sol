@@ -6,7 +6,6 @@ import {ERC4626} from "solady/tokens/ERC4626.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {UUPSUpgradeable} from "solady/utils/UUPSUpgradeable.sol";
 import {Initializable} from "solady/utils/Initializable.sol";
@@ -19,6 +18,7 @@ import {
     IGeneralDistributionAgreementV1
 } from "superfluid/interfaces/superfluid/ISuperfluid.sol";
 import {MarketStorageLayout} from "src/MarketStorageLayout.sol";
+import {MarketGuard} from "src/MarketGuard.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 import {IRateModel} from "src/interfaces/IRateModel.sol";
 import {ISentinelOracle} from "src/interfaces/ISentinelOracle.sol";
@@ -30,9 +30,9 @@ import {IMarket} from "src/interfaces/IMarket.sol";
 contract Market is
     IMarket,
     MarketStorageLayout,
+    MarketGuard,
     ERC4626,
     CFASuperAppBase,
-    Ownable,
     ReentrancyGuard,
     UUPSUpgradeable,
     Initializable
@@ -139,7 +139,13 @@ contract Market is
     /*=========================== External Functions =========================*/
 
     /// @inheritdoc IMarket
-    function openPosition(uint256 notional_, uint256 delta_) external override nonReentrant returns (uint256) {
+    function openPosition(uint256 notional_, uint256 delta_)
+        external
+        override
+        nonReentrant
+        whenPositionOpenNotPaused
+        returns (uint256)
+    {
         if (notional_ == 0) {
             revert NotionalZero();
         }
@@ -457,6 +463,24 @@ contract Market is
         return IERC20(asset()).decimals();
     }
 
-    // @inheritdoc UUPSUpgradeable
+    /// @inheritdoc ERC4626
+    function _deposit(address by_, address to_, uint256 assets_, uint256 shares_)
+        internal
+        override
+        whenLpDepositNotPaused
+    {
+        super._deposit(by_, to_, assets_, shares_);
+    }
+
+    /// @inheritdoc ERC4626
+    function _withdraw(address by_, address to_, address owner_, uint256 assets_, uint256 shares_)
+        internal
+        override
+        whenLpWithdrawNotPaused
+    {
+        super._withdraw(by_, to_, owner_, assets_, shares_);
+    }
+
+    /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address) internal override onlyOwner {}
 }

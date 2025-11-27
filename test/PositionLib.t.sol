@@ -72,10 +72,10 @@ contract PositionLibTest is Test {
     function testQuoteFlowRate_OTMDiscount_Monotonic() public view {
         uint256 notional = 10_000e18;
 
-        int96 flowATM = PositionLib.quoteFlowRate(mockSnapshot, notional, 0);
-        int96 flowOTM = PositionLib.quoteFlowRate(mockSnapshot, notional, 0.2e18);
+        int96 flowAtm = PositionLib.quoteFlowRate(mockSnapshot, notional, 0);
+        int96 flowOtm = PositionLib.quoteFlowRate(mockSnapshot, notional, 0.2e18);
 
-        assertLt(uint256(uint96(flowOTM)), uint256(uint96(flowATM)));
+        assertLt(uint256(uint96(flowOtm)), uint256(uint96(flowAtm)));
     }
 
     function testCalculatePayout_Basic() public view {

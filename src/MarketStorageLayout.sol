@@ -31,6 +31,8 @@ abstract contract MarketStorageLayout {
     bytes32 private constant MARKET_STORAGE_LOCATION =
         0x9067d9ed05a68edd9e5bee40c2c5edce2917e7f1f30f78a49b0af121a36b9400;
 
+    /// @notice Get the market storage
+    /// @return $ The market storage
     function _getMarketStorage() internal pure returns (MarketStorage storage $) {
         assembly {
             $.slot := MARKET_STORAGE_LOCATION

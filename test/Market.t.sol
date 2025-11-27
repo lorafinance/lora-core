@@ -12,7 +12,6 @@ import {
 } from "superfluid/interfaces/superfluid/ISuperfluid.sol";
 import {ISuperApp} from "superfluid/interfaces/superfluid/ISuperApp.sol";
 import {SuperTokenV1Library} from "superfluid/apps/SuperTokenV1Library.sol";
-import {IConstantFlowAgreementV1} from "superfluid/interfaces/agreements/IConstantFlowAgreementV1.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {Market} from "src/Market.sol";

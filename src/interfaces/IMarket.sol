@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.30;
 
+import {IMarketGuard} from "src/interfaces/IMarketGuard.sol";
 import {IRateModel} from "src/interfaces/IRateModel.sol";
 import {ISentinelOracle} from "src/interfaces/ISentinelOracle.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 
 /// @title IMarket
 /// @author Lora Finance
-interface IMarket {
+interface IMarket is IMarketGuard {
     event PositionOpened(
         uint256 indexed id,
         address indexed user,
