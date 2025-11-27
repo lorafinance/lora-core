@@ -38,28 +38,37 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpDepositPaused(bool lpDepositPaused_) external onlyOwner {
+    function setLpDepositPaused(bool paused_) external onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
-        $.lpDepositPaused = lpDepositPaused_;
+        $.lpDepositPaused = paused_;
+
+        emit LpDepositPausedUpdated(paused_);
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpWithdrawPaused(bool lpWithdrawPaused_) external onlyOwner {
+    function setLpWithdrawPaused(bool paused_) external onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
-        $.lpWithdrawPaused = lpWithdrawPaused_;
+        $.lpWithdrawPaused = paused_;
+
+        emit LpWithdrawPausedUpdated(paused_);
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpPaused(bool lpPaused_) external onlyOwner {
+    function setLpPaused(bool paused_) external onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
-        $.lpDepositPaused = lpPaused_;
-        $.lpWithdrawPaused = lpPaused_;
+        $.lpDepositPaused = paused_;
+        $.lpWithdrawPaused = paused_;
+
+        emit LpDepositPausedUpdated(paused_);
+        emit LpWithdrawPausedUpdated(paused_);
     }
 
     /// @inheritdoc IMarketGuard
-    function setPositionOpenPaused(bool positionOpenPaused_) external onlyOwner {
+    function setPositionOpenPaused(bool paused_) external onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
-        $.positionOpenPaused = positionOpenPaused_;
+        $.positionOpenPaused = paused_;
+
+        emit PositionOpenPausedUpdated(paused_);
     }
 
     /// @inheritdoc IMarketGuard
@@ -68,6 +77,10 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
         $.lpDepositPaused = paused_;
         $.lpWithdrawPaused = paused_;
         $.positionOpenPaused = paused_;
+
+        emit LpDepositPausedUpdated(paused_);
+        emit LpWithdrawPausedUpdated(paused_);
+        emit PositionOpenPausedUpdated(paused_);
     }
 
     /// @inheritdoc IMarketGuard
@@ -100,7 +113,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     function _checkMarketLpDepositNotPaused() internal view {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         if ($.lpDepositPaused) {
-            revert MarketLpDepositPaused();
+            revert LpDepositPaused();
         }
     }
 
@@ -108,7 +121,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     function _checkMarketLpWithdrawNotPaused() internal view {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         if ($.lpWithdrawPaused) {
-            revert MarketLpWithdrawPaused();
+            revert LpWithdrawPaused();
         }
     }
 
@@ -116,7 +129,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     function _checkMarketPositionOpenNotPaused() internal view {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         if ($.positionOpenPaused) {
-            revert MarketPositionOpenPaused();
+            revert PositionOpenPaused();
         }
     }
 }

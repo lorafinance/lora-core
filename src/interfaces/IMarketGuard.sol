@@ -2,10 +2,13 @@
 pragma solidity ^0.8.30;
 
 interface IMarketGuard {
-    error MarketPaused();
-    error MarketLpDepositPaused();
-    error MarketLpWithdrawPaused();
-    error MarketPositionOpenPaused();
+    event LpDepositPausedUpdated(bool paused);
+    event LpWithdrawPausedUpdated(bool paused);
+    event PositionOpenPausedUpdated(bool paused);
+
+    error LpDepositPaused();
+    error LpWithdrawPaused();
+    error PositionOpenPaused();
 
     /// @notice Set the paused state of LP deposit
     /// @param paused_ The new paused state

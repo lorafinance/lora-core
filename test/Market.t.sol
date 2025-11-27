@@ -14,6 +14,7 @@ import {ISuperApp} from "superfluid/interfaces/superfluid/ISuperApp.sol";
 import {SuperTokenV1Library} from "superfluid/apps/SuperTokenV1Library.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
+import {IMarketGuard} from "src/interfaces/IMarketGuard.sol";
 import {Market} from "src/Market.sol";
 import {MarketFactory} from "src/MarketFactory.sol";
 import {JumpRateModel} from "src/JumpRateModel.sol";
@@ -116,6 +117,9 @@ contract MarketTest is Test {
         assertEq(market.buffer(), MARKET_BUFFER);
         assertEq(market.otmHalf(), MARKET_OTM_HALF);
         assertEq(market.owner(), OWEN);
+        assertFalse(market.isLpDepositPaused());
+        assertFalse(market.isLpWithdrawPaused());
+        assertFalse(market.isPositionOpenPaused());
     }
 
     function testMarketInitialization_Reverts_AlreadyInitialized() public {
@@ -755,6 +759,170 @@ contract MarketTest is Test {
         uint256 expectedLocked = FixedPointMathLib.mulWad(1000e18, market.buffer()) + market.lockedNotional();
 
         assertEq(maxWithdrawable, 1000e18 - expectedLocked);
+    }
+
+    function testDeposit_Reverts_LpDepositPaused() public assertNotJailed {
+        vm.prank(OWEN);
+        market.setLpDepositPaused(true);
+
+        vm.expectRevert(IMarketGuard.LpDepositPaused.selector);
+        vm.startPrank(ALICE);
+        market.deposit(100e18, ALICE);
+        vm.stopPrank();
+    }
+
+    function testDeposit_Reverts_LpWithdrawPaused() public assertNotJailed {
+        vm.prank(OWEN);
+        market.setLpWithdrawPaused(true);
+
+        vm.prank(ALICE);
+        market.deposit(500e18, ALICE);
+
+        vm.prank(OWEN);
+        market.setLpWithdrawPaused(true);
+
+        vm.expectRevert(IMarketGuard.LpWithdrawPaused.selector);
+        vm.startPrank(ALICE);
+        market.withdraw(100e18, ALICE, ALICE);
+        vm.stopPrank();
+    }
+
+    function testDeposit_Reverts_PositionOpenPaused() public assertNotJailed {
+        vm.prank(OWEN);
+        market.setPositionOpenPaused(true);
+
+        vm.prank(ALICE);
+        market.deposit(500e18, ALICE);
+
+        vm.prank(BOB);
+        vm.expectRevert(IMarketGuard.PositionOpenPaused.selector);
+        market.openPosition(100e18, 0);
+    }
+
+    function testLpActionsPaused_Reverts_All() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(500e18, ALICE);
+
+        vm.prank(OWEN);
+        market.setLpPaused(true);
+
+        vm.prank(ALICE);
+        vm.expectRevert(IMarketGuard.LpDepositPaused.selector);
+        market.deposit(100e18, ALICE);
+
+        vm.prank(ALICE);
+        vm.expectRevert(IMarketGuard.LpWithdrawPaused.selector);
+        market.withdraw(100e18, ALICE, ALICE);
+    }
+
+    function testPauseAllMarketActions_Reverts_All() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(500e18, ALICE);
+
+        vm.prank(OWEN);
+        market.setPaused(true);
+
+        vm.prank(ALICE);
+        vm.expectRevert(IMarketGuard.LpDepositPaused.selector);
+        market.deposit(100e18, ALICE);
+
+        vm.prank(ALICE);
+        vm.expectRevert(IMarketGuard.LpWithdrawPaused.selector);
+        market.withdraw(100e18, ALICE, ALICE);
+
+        vm.prank(BOB);
+        vm.expectRevert(IMarketGuard.PositionOpenPaused.selector);
+        market.openPosition(100e18, 0);
+    }
+
+    function testLpDepositPausedEvent() public assertNotJailed {
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(true);
+        market.setLpDepositPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(false);
+        market.setLpDepositPaused(false);
+    }
+
+    function testLpWithdrawPausedEvent() public assertNotJailed {
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(true);
+        market.setLpWithdrawPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(false);
+        market.setLpWithdrawPaused(false);
+    }
+
+    function testPositionOpenPausedEvent() public assertNotJailed {
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.PositionOpenPausedUpdated(true);
+        market.setPositionOpenPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.PositionOpenPausedUpdated(false);
+        market.setPositionOpenPaused(false);
+    }
+
+    function testLpPausedEvent() public assertNotJailed {
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(true);
+        market.setLpPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(true);
+        market.setLpPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(false);
+        market.setLpPaused(false);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(false);
+        market.setLpPaused(false);
+    }
+
+    function testPausedEvent() public assertNotJailed {
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(true);
+        market.setPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpDepositPausedUpdated(true);
+        market.setPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.PositionOpenPausedUpdated(true);
+        market.setPaused(true);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.PositionOpenPausedUpdated(false);
+        market.setPaused(false);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(false);
+        market.setPaused(false);
+
+        vm.prank(OWEN);
+        vm.expectEmit(address(market));
+        emit IMarketGuard.LpWithdrawPausedUpdated(false);
+        market.setPaused(false);
     }
 
     function testFuzz_Deposit(uint256 depositAmount_) public assertNotJailed {
