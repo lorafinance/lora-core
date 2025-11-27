@@ -776,7 +776,13 @@ contract MarketTest is Test {
         assertEq(market.cap(), newCap);
     }
 
+    function testSetCap_Reverts_NotOwner() public assertNotJailed {
+        uint256 newCap = 2_000_000e18;
 
+        vm.prank(ALICE);
+        vm.expectRevert();
+        market.setCap(newCap);
+    }
 
     function testMaxWithdrawableNoOpenPositions() public assertNotJailed {
         vm.prank(ALICE);
