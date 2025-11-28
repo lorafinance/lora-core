@@ -7,5 +7,8 @@
 
 To run tests, just run
 ```bash
+forge install
+```
+```bash
 docker compose up test
 ```
