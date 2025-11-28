@@ -1,3 +1,11 @@
 # Lora Core Contracts for Audit
 
-The `Dockerfile` is supposed to setup the testing environment, it's still WIP.
+## Testing
+
+> [!INFO]
+> This assumes you have docker running on your system
+
+To run tests, just run
+```bash
+docker compose up test
+```

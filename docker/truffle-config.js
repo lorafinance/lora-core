@@ -84,6 +84,8 @@ const ALIASES = {
 
     "mega-testnet-v2": ["mega-testnet-v2"],
 
+    testing: ["testing"],
+
     // wildcard for any network
     any: ["any"],
 };
@@ -315,6 +317,11 @@ const E = (module.exports = {
             // maxFeePerGas: 5000000,
             // maxPriorityFeePerGas: 1000000,
             network_id: 6343,
+        },
+
+        "testing": {
+            ...createNetworkDefaultConfiguration("testing"),
+            network_id: 31337,
         },
 
         //

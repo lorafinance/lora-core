@@ -1,0 +1,30 @@
+services:
+  anvil:
+    image: ghcr.io/foundry-rs/foundry
+    environment:
+      ANVIL_IP_ADDR: "0.0.0.0"
+    command: anvil
+    ports:
+      - "8545:8545"
+
+  setup:
+    build: .
+    depends_on:
+      - anvil
+    working_dir: /app/protocol-monorepo/packages/ethereum-contracts
+    environment:
+      RPC_URL: "http://anvil:8545"
+      RESOLVER_ADDRESS: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      HOST_ADDRESS: "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
+      FACTORY_ADDRESS: "0x0Db1D0Cfcba97F7dc5AF76cfEC1a646c33cD9297"
+      NATIVE_SUPER_TOKEN_ADDRESS: "0x638A246F0Ec8883eF68280293FFE8Cfbabe61B44"
+      # Anvil 0th account private key (DO NOT USE IN PRODUCTION)
+      PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+    command: ["/app/setup/superfluid.sh"]
+
+  test:
+    build: .
+    depends_on:
+      - setup
+    working_dir: /app/lora
+    command: forge test
