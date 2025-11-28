@@ -2,7 +2,7 @@
 
 ## Testing
 
-> [!INFO]
+> [!IMPORTANT]
 > This assumes you have docker running on your system
 
 To run tests, just run
