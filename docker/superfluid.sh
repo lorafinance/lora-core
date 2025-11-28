@@ -4,8 +4,6 @@ set -euo pipefail
 
 : "${RPC_URL:?RPC_URL env var must be set (e.g. http://anvil:8545)}"
 
-
-
 echo "Waiting for Anvil at "$RPC_URL"..."
 until cast chain-id --rpc-url "$RPC_URL" >/dev/null 2>&1; do
   echo "  still waiting..."
