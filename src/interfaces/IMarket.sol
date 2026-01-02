@@ -2,13 +2,14 @@
 pragma solidity ^0.8.30;
 
 import {IMarketGuard} from "src/interfaces/IMarketGuard.sol";
+import {IMarketFeePolicy} from "src/interfaces/IMarketFeePolicy.sol";
 import {IRateModel} from "src/interfaces/IRateModel.sol";
 import {ISentinelOracle} from "src/interfaces/ISentinelOracle.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 
 /// @title IMarket
 /// @author Lora Finance
-interface IMarket is IMarketGuard {
+interface IMarket is IMarketGuard, IMarketFeePolicy {
     event PositionOpened(
         uint256 indexed id,
         address indexed user,

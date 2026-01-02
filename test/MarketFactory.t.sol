@@ -64,7 +64,8 @@ contract MarketFactoryTest is Test {
 
         bytes memory immutableArgs = abi.encode(address(superToken));
         bytes memory initializerData = abi.encodeCall(
-            Market.initialize, (address(rateModel), address(priceOracle), 0.1e18, 10000e18, 500e18, 15 minutes, OWEN)
+            Market.initialize,
+            (address(rateModel), address(priceOracle), 0.1e18, 10000e18, 500e18, 15 minutes, 0.001e18, 0.01e18, OWEN)
         );
 
         vm.prank(OWEN);
@@ -81,7 +82,8 @@ contract MarketFactoryTest is Test {
 
     function testDeployMarket_NotOwner() public {
         bytes memory immutableArgs = abi.encode(address(superToken));
-        bytes memory initializerData = abi.encodeCall(Market.initialize, (address(0), address(0), 0, 0, 0, 0, OWEN));
+        bytes memory initializerData =
+            abi.encodeCall(Market.initialize, (address(0), address(0), 0, 0, 0, 0, 0, 0, OWEN));
 
         vm.prank(ALICE);
         vm.expectRevert();
@@ -102,7 +104,8 @@ contract MarketFactoryTest is Test {
 
         bytes memory immutableArgs = abi.encode(address(superToken));
         bytes memory initializerData = abi.encodeCall(
-            Market.initialize, (address(rateModel), address(priceOracle), 0.1e18, 500e18, 10000e18, 15 minutes, OWEN)
+            Market.initialize,
+            (address(rateModel), address(priceOracle), 0.1e18, 500e18, 10000e18, 15 minutes, 0, 0, OWEN)
         );
 
         vm.prank(OWEN);
@@ -111,6 +114,6 @@ contract MarketFactoryTest is Test {
         Market market = Market(marketAddress);
 
         vm.expectRevert();
-        market.initialize(address(rateModel), address(priceOracle), 0.1e18, 10000e18, 500e18, 15 minutes, OWEN);
+        market.initialize(address(rateModel), address(priceOracle), 0.1e18, 10000e18, 500e18, 15 minutes, 0, 0, OWEN);
     }
 }

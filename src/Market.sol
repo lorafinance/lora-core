@@ -5,6 +5,7 @@ import {IERC20} from "forge-std/interfaces/IERC20.sol";
 import {ERC4626} from "solady/tokens/ERC4626.sol";
 import {ERC20} from "solady/tokens/ERC20.sol";
 import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {UUPSUpgradeable} from "solady/utils/UUPSUpgradeable.sol";
@@ -19,6 +20,7 @@ import {
 } from "superfluid/interfaces/superfluid/ISuperfluid.sol";
 import {MarketStorageLayout} from "src/MarketStorageLayout.sol";
 import {MarketGuard} from "src/MarketGuard.sol";
+import {MarketFeePolicy} from "src/MarketFeePolicy.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 import {IRateModel} from "src/interfaces/IRateModel.sol";
 import {ISentinelOracle} from "src/interfaces/ISentinelOracle.sol";
@@ -31,15 +33,24 @@ contract Market is
     IMarket,
     MarketStorageLayout,
     MarketGuard,
+    MarketFeePolicy,
     ERC4626,
     CFASuperAppBase,
     ReentrancyGuard,
+    Ownable,
     UUPSUpgradeable,
     Initializable
 {
     using SafeTransferLib for address;
     using LibClone for address;
     using SuperTokenV1Library for ISuperToken;
+
+    /*=========================== Modifiers =========================*/
+
+    modifier onlyOwner() override(MarketGuard, MarketFeePolicy, Ownable) {
+        _checkOwner();
+        _;
+    }
 
     /*=========================== Constructor =========================*/
 
@@ -65,6 +76,8 @@ contract Market is
         uint256 cap_,
         uint256 otmHalf_,
         uint256 warmUpPeriod_,
+        uint256 openPositionFee_,
+        uint256 closePositionFee_,
         address owner_
     ) external initializer {
         if (otmHalf_ == 0) {
@@ -88,6 +101,7 @@ contract Market is
         uint256 configWord = SuperAppDefinitions.APP_LEVEL_FINAL;
         HOST.registerApp(configWord);
 
+        _initializeFeePolicy(openPositionFee_, closePositionFee_);
         _initializeOwner(owner_);
 
         // from CFASuperAppBase constructor
@@ -202,6 +216,8 @@ contract Market is
         $.userLockedNotional[msg.sender] += notional_;
         $.userFlowRate[msg.sender] += flowRate;
 
+        _chargeOpenPositionFee(msg.sender, notional_);
+
         bool success = ISuperToken(asset()).flowFrom(msg.sender, address(this), $.userFlowRate[msg.sender]);
         if (!success) {
             revert FailedToOpenPosition(notional_, delta_);
@@ -246,6 +262,8 @@ contract Market is
         $.lockedNotional -= position.notional;
         $.userLockedNotional[msg.sender] -= position.notional;
         $.userFlowRate[msg.sender] -= position.flowRate;
+
+        _chargeClosePositionFee(msg.sender, position.notional);
 
         bool success = ISuperToken(asset()).flowFrom(msg.sender, address(this), $.userFlowRate[msg.sender]);
         if (!success) {
@@ -459,9 +477,14 @@ contract Market is
     }
 
     /// @inheritdoc ERC4626
-    function asset() public view override returns (address) {
+    function asset() public view override(ERC4626, MarketFeePolicy) returns (address) {
         bytes memory args = address(this).argsOnERC1967();
         return abi.decode(args, (address));
+    }
+
+    /// @inheritdoc ERC4626
+    function totalAssets() public view override returns (uint256) {
+        return super.totalAssets() - accruedFees();
     }
 
     /// @inheritdoc ERC20
@@ -504,4 +527,9 @@ contract Market is
 
     /// @inheritdoc UUPSUpgradeable
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    /// @inheritdoc Ownable
+    function _checkOwner() internal view override(MarketGuard, MarketFeePolicy, Ownable) {
+        super._checkOwner();
+    }
 }
