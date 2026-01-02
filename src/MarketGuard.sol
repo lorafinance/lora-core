@@ -2,12 +2,11 @@
 pragma solidity ^0.8.30;
 
 import {IMarketGuard} from "src/interfaces/IMarketGuard.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
 
 /// @title MarketGuard
 /// @author Lora Finance
 /// @notice A contract module which allows children to implement an emergency stop
-abstract contract MarketGuard is IMarketGuard, Ownable {
+abstract contract MarketGuard is IMarketGuard {
     /// @custom:storage-location erc7201:lora.market.guard
     struct MarketGuardStorage {
         bool lpDepositPaused;
@@ -38,7 +37,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpDepositPaused(bool paused_) external onlyOwner {
+    function setLpDepositPaused(bool paused_) external override onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         $.lpDepositPaused = paused_;
 
@@ -46,7 +45,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpWithdrawPaused(bool paused_) external onlyOwner {
+    function setLpWithdrawPaused(bool paused_) external override onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         $.lpWithdrawPaused = paused_;
 
@@ -54,7 +53,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setLpPaused(bool paused_) external onlyOwner {
+    function setLpPaused(bool paused_) external override onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         $.lpDepositPaused = paused_;
         $.lpWithdrawPaused = paused_;
@@ -64,7 +63,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setPositionOpenPaused(bool paused_) external onlyOwner {
+    function setPositionOpenPaused(bool paused_) external override onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         $.positionOpenPaused = paused_;
 
@@ -72,7 +71,7 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function setPaused(bool paused_) external onlyOwner {
+    function setPaused(bool paused_) external override onlyOwner {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         $.lpDepositPaused = paused_;
         $.lpWithdrawPaused = paused_;
@@ -84,19 +83,19 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
     }
 
     /// @inheritdoc IMarketGuard
-    function isLpDepositPaused() external view returns (bool) {
+    function isLpDepositPaused() external view override returns (bool) {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         return $.lpDepositPaused;
     }
 
     /// @inheritdoc IMarketGuard
-    function isLpWithdrawPaused() external view returns (bool) {
+    function isLpWithdrawPaused() external view override returns (bool) {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         return $.lpWithdrawPaused;
     }
 
     /// @inheritdoc IMarketGuard
-    function isPositionOpenPaused() external view returns (bool) {
+    function isPositionOpenPaused() external view override returns (bool) {
         MarketGuardStorage storage $ = _getMarketGuardStorage();
         return $.positionOpenPaused;
     }
@@ -131,5 +130,14 @@ abstract contract MarketGuard is IMarketGuard, Ownable {
         if ($.positionOpenPaused) {
             revert PositionOpenPaused();
         }
+    }
+
+    /// @dev From solady/auth/Ownable.sol
+    function _checkOwner() internal view virtual;
+
+    /// @dev From solady/auth/Ownable.sol
+    modifier onlyOwner() virtual {
+        _checkOwner();
+        _;
     }
 }

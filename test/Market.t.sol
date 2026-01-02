@@ -10,6 +10,7 @@ import {SuperTokenV1Library} from "superfluid/apps/SuperTokenV1Library.sol";
 import {PositionLib} from "src/libraries/PositionLib.sol";
 import {IMarket} from "src/interfaces/IMarket.sol";
 import {IMarketGuard} from "src/interfaces/IMarketGuard.sol";
+import {IMarketFeePolicy} from "src/interfaces/IMarketFeePolicy.sol";
 import {Market} from "src/Market.sol";
 import {MarketFactory} from "src/MarketFactory.sol";
 import {JumpRateModel} from "src/JumpRateModel.sol";
@@ -17,6 +18,7 @@ import {SentinelOracle} from "src/SentinelOracle.sol";
 import {Faucet} from "src/testnet/Faucet.sol";
 import {MockAggregatorV3Interface} from "test/mocks/AggregatorV3Interface.sol";
 import {Streamer} from "test/helpers/Streamer.sol";
+import {console} from "forge-std/console.sol";
 
 contract MarketTest is Test {
     using LibClone for address;
@@ -91,6 +93,8 @@ contract MarketTest is Test {
                 MARKET_CAP,
                 MARKET_OTM_HALF,
                 MARKET_WARM_UP_PERIOD,
+                0,
+                0,
                 OWEN
             )
         );
@@ -136,6 +140,8 @@ contract MarketTest is Test {
             MARKET_CAP,
             MARKET_OTM_HALF,
             MARKET_WARM_UP_PERIOD,
+            0,
+            0,
             OWEN
         );
     }
@@ -151,6 +157,8 @@ contract MarketTest is Test {
             MARKET_CAP,
             MARKET_OTM_HALF,
             MARKET_WARM_UP_PERIOD,
+            0,
+            0,
             OWEN
         );
     }
@@ -784,6 +792,82 @@ contract MarketTest is Test {
         market.setCap(newCap);
     }
 
+    function testSetOpenPositionFee() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(OWEN);
+        market.setOpenPositionFee(newFee);
+        assertEq(market.openPositionFee(), newFee);
+    }
+
+    function testSetOpenPositionFee_Reverts_NotOwner() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(ALICE);
+        vm.expectRevert();
+        market.setOpenPositionFee(newFee);
+    }
+
+    function testSetOpenPositionFee_Reverts_InvalidFee() public assertNotJailed {
+        uint256 newFee = 1.5e18;
+        uint256 maxFee = market.MAX_FEE();
+
+        vm.prank(OWEN);
+        vm.expectRevert(abi.encodeWithSelector(IMarketFeePolicy.InvalidFee.selector, newFee, maxFee));
+        market.setOpenPositionFee(newFee);
+    }
+
+    function testSetClosePositionFee() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(OWEN);
+        market.setClosePositionFee(newFee);
+        assertEq(market.closePositionFee(), newFee);
+    }
+
+    function testSetClosePositionFee_Reverts_NotOwner() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(ALICE);
+        vm.expectRevert();
+        market.setClosePositionFee(newFee);
+    }
+
+    function testSetClosePositionFee_Reverts_InvalidFee() public assertNotJailed {
+        uint256 newFee = 1.5e18;
+        uint256 maxFee = market.MAX_FEE();
+
+        vm.prank(OWEN);
+        vm.expectRevert(abi.encodeWithSelector(IMarketFeePolicy.InvalidFee.selector, newFee, maxFee));
+        market.setClosePositionFee(newFee);
+    }
+
+    function testSetFee() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(OWEN);
+        market.setFee(newFee);
+        assertEq(market.openPositionFee(), newFee);
+        assertEq(market.closePositionFee(), newFee);
+    }
+
+    function testSetFee_Reverts_NotOwner() public assertNotJailed {
+        uint256 newFee = 0.01e18;
+
+        vm.prank(ALICE);
+        vm.expectRevert();
+        market.setFee(newFee);
+    }
+
+    function testSetFee_Reverts_InvalidFee() public assertNotJailed {
+        uint256 newFee = 1.5e18;
+        uint256 maxFee = market.MAX_FEE();
+
+        vm.prank(OWEN);
+        vm.expectRevert(abi.encodeWithSelector(IMarketFeePolicy.InvalidFee.selector, newFee, maxFee));
+        market.setFee(newFee);
+    }
+
     function testMaxWithdrawableNoOpenPositions() public assertNotJailed {
         vm.prank(ALICE);
         market.deposit(1000e18, ALICE);
@@ -1227,5 +1311,169 @@ contract MarketTest is Test {
         }
 
         assertEq(market.lockedNotional(), 0);
+    }
+
+    function test_OpenPositionWithFee() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.prank(OWEN);
+        market.setOpenPositionFee(0.001e18);
+
+        uint256 openPositionFee = market.openPositionFee();
+        uint256 bobBalanceBefore = superToken.balanceOf(BOB);
+
+        vm.startPrank(BOB);
+        superToken.approve(address(market), type(uint256).max);
+        uint256 positionId = market.openPosition(100e18, 0);
+        vm.stopPrank();
+
+        PositionLib.Position memory position = market.positions(positionId);
+        uint256 expectedFee = FixedPointMathLib.mulWadUp(100e18, openPositionFee);
+        uint256 bobBalanceAfter = superToken.balanceOf(BOB);
+
+        assertGt(expectedFee, 0);
+
+        assertEq(
+            bobBalanceAfter, bobBalanceBefore - expectedFee - superToken.getBufferAmountByFlowRate(position.flowRate)
+        );
+    }
+
+    function test_ClosePositionWithFee() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.prank(OWEN);
+        market.setClosePositionFee(0.001e18);
+
+        uint256 closePositionFee = market.closePositionFee();
+
+        vm.startPrank(BOB);
+        superToken.approve(address(market), type(uint256).max);
+
+        uint256 positionId = market.openPosition(100e18, 0);
+        PositionLib.Position memory position = market.positions(positionId);
+
+        uint256 bobBalanceBefore = superToken.balanceOf(BOB);
+        uint256 expectedFee = FixedPointMathLib.mulWadUp(100e18, closePositionFee);
+
+        uint256 payout = market.closePosition(positionId);
+        vm.stopPrank();
+
+        uint256 bobBalanceAfter = superToken.balanceOf(BOB);
+
+        assertGt(expectedFee, 0);
+        assertEq(
+            bobBalanceAfter,
+            (bobBalanceBefore + payout + superToken.getBufferAmountByFlowRate(position.flowRate)) - expectedFee
+        );
+    }
+
+    function test_AccuredFees() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.startPrank(OWEN);
+        market.setOpenPositionFee(0.001e18);
+        market.setClosePositionFee(0.001e18);
+        vm.stopPrank();
+
+        uint256 openPositionFee = market.openPositionFee();
+        uint256 closePositionFee = market.closePositionFee();
+
+        vm.startPrank(BOB);
+        superToken.approve(address(market), type(uint256).max);
+
+        uint256 positionId = market.openPosition(100e18, 0);
+        uint256 expectedOpenFee = FixedPointMathLib.mulWadUp(100e18, openPositionFee);
+
+        vm.warp(block.timestamp + 7 days);
+        mockFeed.setPrice(2500e18);
+
+        uint256 expectedCloseFee = FixedPointMathLib.mulWadUp(100e18, closePositionFee);
+        market.closePosition(positionId);
+        vm.stopPrank();
+
+        uint256 totalExpectedFees = expectedOpenFee + expectedCloseFee;
+        uint256 accruedFees = market.accruedFees();
+
+        assertEq(accruedFees, totalExpectedFees);
+    }
+
+    function test_WithdrawAccruedFees() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.startPrank(OWEN);
+        market.setOpenPositionFee(0.001e18);
+        market.setClosePositionFee(0.001e18);
+        vm.stopPrank();
+
+        uint256 openPositionFee = market.openPositionFee();
+        uint256 closePositionFee = market.closePositionFee();
+
+        vm.startPrank(BOB);
+        superToken.approve(address(market), type(uint256).max);
+
+        uint256 positionId = market.openPosition(100e18, 0);
+        uint256 expectedOpenFee = FixedPointMathLib.mulWadUp(100e18, openPositionFee);
+
+        vm.warp(block.timestamp + 7 days);
+        mockFeed.setPrice(2500e18);
+
+        uint256 expectedCloseFee = FixedPointMathLib.mulWadUp(100e18, closePositionFee);
+        market.closePosition(positionId);
+        vm.stopPrank();
+
+        uint256 totalExpectedFees = expectedOpenFee + expectedCloseFee;
+        uint256 accruedFeesBefore = market.accruedFees();
+
+        assertEq(accruedFeesBefore, totalExpectedFees);
+
+        uint256 ownerBalanceBefore = superToken.balanceOf(OWEN);
+
+        vm.prank(OWEN);
+        market.withdrawAccruedFees(OWEN);
+
+        uint256 ownerBalanceAfter = superToken.balanceOf(OWEN);
+        uint256 accruedFeesAfter = market.accruedFees();
+
+        assertEq(ownerBalanceAfter - ownerBalanceBefore, totalExpectedFees);
+        assertEq(accruedFeesAfter, 0);
+    }
+
+    function test_WithdrawAccruedFees_Reverts_NotOwner() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.startPrank(OWEN);
+        market.setOpenPositionFee(0.001e18);
+        market.setClosePositionFee(0.001e18);
+        vm.stopPrank();
+
+        uint256 openPositionFee = market.openPositionFee();
+        uint256 closePositionFee = market.closePositionFee();
+
+        vm.startPrank(BOB);
+        superToken.approve(address(market), type(uint256).max);
+
+        uint256 positionId = market.openPosition(100e18, 0);
+        uint256 expectedOpenFee = FixedPointMathLib.mulWadUp(100e18, openPositionFee);
+
+        vm.warp(block.timestamp + 7 days);
+        mockFeed.setPrice(2500e18);
+
+        uint256 expectedCloseFee = FixedPointMathLib.mulWadUp(100e18, closePositionFee);
+        market.closePosition(positionId);
+        vm.stopPrank();
+
+        uint256 totalExpectedFees = expectedOpenFee + expectedCloseFee;
+        uint256 accruedFeesBefore = market.accruedFees();
+
+        assertEq(accruedFeesBefore, totalExpectedFees);
+
+        vm.prank(ALICE);
+        vm.expectRevert();
+        market.withdrawAccruedFees(ALICE);
     }
 }

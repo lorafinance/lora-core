@@ -31,6 +31,7 @@ contract DeployScript is Script {
     uint256 constant MARKET_CAP = 10_000e18; // Market cap for deposits
     uint256 constant MARKET_OTM_HALF = 0.35e18; // OTM discount h: m(δ) = h / (h + δ)
     uint256 constant MARKET_WARM_UP_PERIOD = 15 minutes;
+    uint256 constant MARKET_FEE = 0.001e18; // 0.1% fee
 
     uint256 deployerPrivateKey;
     uint256 lpPrivateKey;
@@ -87,6 +88,8 @@ contract DeployScript is Script {
                 MARKET_CAP,
                 MARKET_OTM_HALF,
                 MARKET_WARM_UP_PERIOD,
+                MARKET_FEE,
+                MARKET_FEE,
                 admin
             )
         );
@@ -100,7 +103,7 @@ contract DeployScript is Script {
         console.log("Admin:", admin);
         console.log("LP:", lp);
         console.log("Faucet:", address(faucet));
-        console.log("Faucet (ERC20):", faucet.ERC20());
+        console.log("Faucet (ERC20):", faucet.TOKEN());
         console.log("Faucet (SUPER_TOKEN):", faucet.SUPER_TOKEN());
         console.log("JumpRateModel:", address(rateModel));
         console.log("SentinelOracle:", address(priceOracle));

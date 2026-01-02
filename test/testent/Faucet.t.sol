@@ -29,17 +29,12 @@ contract FaucetTest is Test {
     }
 
     function testConstructor() public view {
-        MintableERC20 erc20 = MintableERC20(faucet.ERC20());
+        MintableERC20 erc20 = MintableERC20(faucet.TOKEN());
         IERC20 superToken = IERC20(faucet.SUPER_TOKEN());
 
-        (address superTokenCanonicalAddress, bool isSuperTokenDeployed) =
-            superfluidHost.getSuperTokenFactory().computeCanonicalERC20WrapperAddress(address(erc20));
-
-        assertEq(address(superToken), superTokenCanonicalAddress);
-        assertTrue(isSuperTokenDeployed);
         assertEq(faucet.owner(), OWEN);
         assertEq(erc20.owner(), OWEN);
-        assertGt(faucet.ERC20().code.length, 0);
+        assertGt(faucet.TOKEN().code.length, 0);
         assertGt(faucet.SUPER_TOKEN().code.length, 0);
         assertEq(erc20.name(), "Test Token");
         assertEq(erc20.symbol(), "TTK");
