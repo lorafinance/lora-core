@@ -5,13 +5,13 @@
 	path = lib/openzeppelin-contracts-v5
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 	branch = release-v5.5
-[submodule "lib/superfluid-protocol-monorepo"]
-	path = lib/superfluid-protocol-monorepo
-	url = https://github.com/superfluid-finance/protocol-monorepo
-	branch = dev
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/vectorized/solady
 [submodule "lib/foundry-chainlink-toolkit"]
 	path = lib/foundry-chainlink-toolkit
 	url = https://github.com/smartcontractkit/foundry-chainlink-toolkit
+[submodule "lib/superfluid-protocol-monorepo"]
+	path = lib/superfluid-protocol-monorepo
+	url = https://github.com/lorafinance/superfluid-protocol-monorepo-duct-tape
+	branch = main

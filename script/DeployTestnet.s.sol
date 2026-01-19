@@ -75,7 +75,7 @@ contract DeployScript is Script {
 
         vm.startBroadcast(deployerPrivateKey);
         address marketImplementation = address(new Market(superfluidHost));
-        MarketFactory marketFactory = new MarketFactory(marketImplementation, admin);
+        MarketFactory marketFactory = new MarketFactory(marketImplementation, deployer);
         vm.stopBroadcast();
 
         bytes memory immutableArgs = abi.encode(address(faucet.SUPER_TOKEN()));
@@ -97,6 +97,10 @@ contract DeployScript is Script {
         vm.startBroadcast(deployerPrivateKey);
         address marketAddress = marketFactory.deployMarket(immutableArgs, initializerData);
         market = Market(marketAddress);
+        vm.stopBroadcast();
+
+        vm.startBroadcast(deployerPrivateKey);
+        marketFactory.transferOwnership(admin);
         vm.stopBroadcast();
 
         console.log("Deployer:", deployer);
