@@ -22,8 +22,8 @@
   },
   "lib/superfluid-protocol-monorepo": {
     "branch": {
-      "name": "main",
-      "rev": "5ebcdf215e9456a600d7f26e36a048106b41d984"
+      "name": "dev",
+      "rev": "deeae861a8e0465b31aebafc2af1044241863714"
     }
   }
 }

@@ -13,5 +13,5 @@
 	url = https://github.com/smartcontractkit/foundry-chainlink-toolkit
 [submodule "lib/superfluid-protocol-monorepo"]
 	path = lib/superfluid-protocol-monorepo
-	url = https://github.com/lorafinance/superfluid-protocol-monorepo-duct-tape
-	branch = main
+	url = https://github.com/superfluid-finance/protocol-monorepo
+	branch = dev
