@@ -231,13 +231,13 @@ contract MarketTest is Test {
 
         vm.startPrank(BOB);
         vm.expectEmit(address(market));
-        emit IMarket.PositionOpened(1, BOB, notional, delta, uint256(initialPrice), previewFlowRate, block.timestamp);
+        emit IMarket.PositionOpened(0, BOB, notional, delta, uint256(initialPrice), previewFlowRate, block.timestamp);
         uint256 positionId = market.openPosition(notional, delta);
         vm.stopPrank();
 
-        assertEq(positionId, 1);
+        assertEq(positionId, 0);
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
         int96 toMarketFlowRate = superToken.getFlowRate(BOB, address(market));
         int96 fromMarketFlowRate = superToken.getFlowRate(address(market), BOB);
 
@@ -248,7 +248,7 @@ contract MarketTest is Test {
         assertEq(position.state, PositionLib.POSITION_OPEN_STATE_TAG);
         assertEq(position.openedAt, block.timestamp);
         assertEq(market.lockedNotional(), notional);
-        assertEq(market.totalPositions(), 1);
+        assertEq(market.totalPositions(BOB), 1);
         assertEq(toMarketFlowRate, previewFlowRate);
         assertEq(fromMarketFlowRate, 0);
     }
@@ -266,13 +266,13 @@ contract MarketTest is Test {
         vm.startPrank(BOB);
         int96 previewFlowRate1 = market.previewFlowRate(notional1, delta1);
         vm.expectEmit(address(market));
-        emit IMarket.PositionOpened(1, BOB, notional1, delta1, initialPrice, previewFlowRate1, block.timestamp);
+        emit IMarket.PositionOpened(0, BOB, notional1, delta1, initialPrice, previewFlowRate1, block.timestamp);
         uint256 positionId1 = market.openPosition(notional1, delta1);
 
         int96 previewFlowRate2 = market.previewFlowRate(notional2, delta2);
         vm.expectEmit(address(market));
         emit IMarket.PositionOpened(
-            2,
+            1,
             BOB,
             notional2,
             delta2,
@@ -283,13 +283,13 @@ contract MarketTest is Test {
         uint256 positionId2 = market.openPosition(notional2, delta2);
         vm.stopPrank();
 
-        assertEq(positionId1, 1);
-        assertEq(positionId2, 2);
+        assertEq(positionId1, 0);
+        assertEq(positionId2, 1);
         assertEq(market.lockedNotional(), notional1 + notional2);
-        assertEq(market.totalPositions(), 2);
+        assertEq(market.totalPositions(BOB), 2);
 
-        PositionLib.Position memory position1 = market.positions(positionId1);
-        PositionLib.Position memory position2 = market.positions(positionId2);
+        PositionLib.Position memory position1 = market.getPosition(BOB, positionId1);
+        PositionLib.Position memory position2 = market.getPosition(BOB, positionId2);
         int96 flowRate = superToken.getFlowRate(BOB, address(market));
 
         assertEq(position1.notional, notional1);
@@ -320,7 +320,7 @@ contract MarketTest is Test {
         market.openPosition(20e18, 0);
         vm.stopPrank();
 
-        assertEq(market.totalPositions(), 0);
+        assertEq(market.totalPositions(BOB), 0);
         assertEq(market.lockedNotional(), 0);
     }
 
@@ -333,7 +333,7 @@ contract MarketTest is Test {
         market.openPosition(0, 0);
         vm.stopPrank();
 
-        assertEq(market.totalPositions(), 0);
+        assertEq(market.totalPositions(BOB), 0);
         assertEq(market.lockedNotional(), 0);
     }
 
@@ -346,7 +346,7 @@ contract MarketTest is Test {
         market.openPosition(900e18, 100000000000000000e18);
         vm.stopPrank();
 
-        assertEq(market.totalPositions(), 0);
+        assertEq(market.totalPositions(BOB), 0);
         assertEq(market.lockedNotional(), 0);
     }
 
@@ -397,7 +397,7 @@ contract MarketTest is Test {
         uint256 positionId = market.openPosition(100e18, 0);
         vm.stopPrank();
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(address(streamer), positionId);
         int96 flowRate = int96(int256(uint256(1e14) / 7 days));
 
         vm.expectRevert(
@@ -416,20 +416,22 @@ contract MarketTest is Test {
         vm.warp(block.timestamp + 7 days);
         mockFeed.setPrice(2500e18);
 
-        uint256 expectedPayout = market.previewPayout(positionId);
+        uint256 expectedPayout = market.previewPayout(BOB, positionId);
 
         vm.expectEmit(address(market));
         emit IMarket.PositionClosed(positionId, BOB, expectedPayout, block.timestamp);
         uint256 payout = market.closePosition(positionId);
         vm.stopPrank();
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
         int96 toMarketFlowRate = superToken.getFlowRate(BOB, address(market));
         int96 fromMarketFlowRate = superToken.getFlowRate(address(market), BOB);
 
         assertEq(position.state, PositionLib.POSITION_CLOSED_STATE_TAG);
         assertEq(market.lockedNotional(), 0);
         assertEq(payout, expectedPayout);
+        assertEq(position.closedAt, block.timestamp);
+        assertEq(position.profit, expectedPayout);
         assertEq(toMarketFlowRate, 0);
         assertEq(fromMarketFlowRate, 0);
     }
@@ -445,15 +447,15 @@ contract MarketTest is Test {
         vm.warp(block.timestamp + 7 days);
         mockFeed.setPrice(2500e18);
 
-        uint256 expectedPayout1 = market.previewPayout(positionId1);
+        uint256 expectedPayout1 = market.previewPayout(BOB, positionId1);
 
         vm.expectEmit(address(market));
         emit IMarket.PositionClosed(positionId1, BOB, expectedPayout1, block.timestamp);
         uint256 payout1 = market.closePosition(positionId1);
         vm.stopPrank();
 
-        PositionLib.Position memory position1 = market.positions(positionId1);
-        PositionLib.Position memory position2 = market.positions(positionId2);
+        PositionLib.Position memory position1 = market.getPosition(BOB, positionId1);
+        PositionLib.Position memory position2 = market.getPosition(BOB, positionId2);
         int96 toMarketFlowRate = superToken.getFlowRate(BOB, address(market));
         int96 fromMarketFlowRate = superToken.getFlowRate(address(market), BOB);
 
@@ -461,6 +463,10 @@ contract MarketTest is Test {
         assertEq(position2.state, PositionLib.POSITION_OPEN_STATE_TAG);
         assertEq(market.lockedNotional(), 20e18);
         assertEq(payout1, expectedPayout1);
+        assertEq(position1.closedAt, block.timestamp);
+        assertEq(position1.profit, expectedPayout1);
+        assertEq(position2.closedAt, 0);
+        assertEq(position2.profit, 0);
         assertEq(toMarketFlowRate, position2.flowRate);
         assertEq(fromMarketFlowRate, 0);
     }
@@ -476,8 +482,8 @@ contract MarketTest is Test {
         vm.warp(block.timestamp + 7 days);
         mockFeed.setPrice(2500e18);
 
-        uint256 expectedPayout1 = market.previewPayout(positionId1);
-        uint256 expectedPayout2 = market.previewPayout(positionId2);
+        uint256 expectedPayout1 = market.previewPayout(BOB, positionId1);
+        uint256 expectedPayout2 = market.previewPayout(BOB, positionId2);
 
         vm.expectEmit(address(market));
         emit IMarket.PositionClosed(positionId1, BOB, expectedPayout1, block.timestamp);
@@ -488,8 +494,8 @@ contract MarketTest is Test {
         uint256 payout2 = market.closePosition(positionId2);
         vm.stopPrank();
 
-        PositionLib.Position memory position1 = market.positions(positionId1);
-        PositionLib.Position memory position2 = market.positions(positionId2);
+        PositionLib.Position memory position1 = market.getPosition(BOB, positionId1);
+        PositionLib.Position memory position2 = market.getPosition(BOB, positionId2);
         int96 toMarketFlowRate = superToken.getFlowRate(BOB, address(market));
         int96 fromMarketFlowRate = superToken.getFlowRate(address(market), BOB);
 
@@ -507,7 +513,7 @@ contract MarketTest is Test {
         market.deposit(1000e18, ALICE);
 
         vm.startPrank(BOB);
-        vm.expectRevert(abi.encodeWithSelector(IMarket.PositionNotFound.selector, 1));
+        vm.expectRevert();
         market.closePosition(1);
         vm.stopPrank();
     }
@@ -521,7 +527,7 @@ contract MarketTest is Test {
         vm.stopPrank();
 
         vm.startPrank(CHARLIE);
-        vm.expectRevert(abi.encodeWithSelector(IMarket.OnlyPositionOwner.selector, CHARLIE, BOB));
+        vm.expectRevert();
         market.closePosition(positionId);
         vm.stopPrank();
     }
@@ -558,8 +564,10 @@ contract MarketTest is Test {
         emit IMarket.UserLiquidated(address(streamer), block.timestamp);
         streamer.deleteStream(address(streamer), address(market));
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(address(streamer), positionId);
         assertEq(position.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
+        assertEq(position.owner, address(streamer));
+        assertEq(position.profit, 0);
     }
 
     function testDeleteStreamMultiplePositionsLiquidated() public assertNotJailed {
@@ -578,8 +586,8 @@ contract MarketTest is Test {
         emit IMarket.UserLiquidated(address(streamer), block.timestamp);
         streamer.deleteStream(address(streamer), address(market));
 
-        PositionLib.Position memory position1 = market.positions(positionId1);
-        PositionLib.Position memory position2 = market.positions(positionId2);
+        PositionLib.Position memory position1 = market.getPosition(address(streamer), positionId1);
+        PositionLib.Position memory position2 = market.getPosition(address(streamer), positionId2);
         assertEq(position1.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
         assertEq(position2.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
     }
@@ -607,7 +615,7 @@ contract MarketTest is Test {
         emit IMarket.UserLiquidated(CHARLIE, block.timestamp);
         streamer.deleteStream(CHARLIE, address(market));
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(CHARLIE, positionId);
         assertEq(position.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
         assertEq(position.owner, CHARLIE);
         assertEq(market.lockedNotional(), 0);
@@ -638,8 +646,8 @@ contract MarketTest is Test {
         emit IMarket.UserLiquidated(CHARLIE, block.timestamp);
         streamer.deleteStream(CHARLIE, address(market));
 
-        PositionLib.Position memory positionBob = market.positions(positionIdBob);
-        PositionLib.Position memory positionCharlie = market.positions(positionIdCharlie);
+        PositionLib.Position memory positionBob = market.getPosition(BOB, positionIdBob);
+        PositionLib.Position memory positionCharlie = market.getPosition(CHARLIE, positionIdCharlie);
 
         assertEq(positionBob.state, PositionLib.POSITION_OPEN_STATE_TAG);
         assertEq(positionCharlie.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
@@ -667,9 +675,9 @@ contract MarketTest is Test {
         emit IMarket.UserLiquidated(address(streamer), block.timestamp);
         streamer.deleteStream(address(streamer), address(market));
 
-        PositionLib.Position memory position1 = market.positions(1);
-        PositionLib.Position memory position2 = market.positions(2);
-        PositionLib.Position memory position3 = market.positions(3);
+        PositionLib.Position memory position1 = market.getPosition(address(streamer), 0);
+        PositionLib.Position memory position2 = market.getPosition(address(streamer), 1);
+        PositionLib.Position memory position3 = market.getPosition(BOB, 0);
 
         assertEq(position1.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
         assertEq(position2.state, PositionLib.POSITION_LIQUIDATED_STATE_TAG);
@@ -691,7 +699,7 @@ contract MarketTest is Test {
         uint256 positionId = market.openPosition(notional, delta);
         vm.stopPrank();
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
         assertEq(position.strikePrice, initialPrice + FixedPointMathLib.mulWad(initialPrice, delta));
     }
 
@@ -1168,7 +1176,7 @@ contract MarketTest is Test {
         vm.prank(BOB);
         uint256 positionId = market.openPosition(notional_, delta_);
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
 
         assertEq(position.owner, BOB);
         assertEq(position.notional, notional_);
@@ -1199,7 +1207,7 @@ contract MarketTest is Test {
             vm.prank(BOB);
             uint256 positionId = market.openPosition(notional_, delta_);
 
-            PositionLib.Position memory position = market.positions(positionId);
+            PositionLib.Position memory position = market.getPosition(BOB, positionId);
 
             assertEq(position.owner, BOB);
             assertEq(position.notional, notional_);
@@ -1254,12 +1262,12 @@ contract MarketTest is Test {
         vm.warp(block.timestamp + timeTravel_);
         mockFeed.setPrice(2500e18);
 
-        uint256 expectedPayout = market.previewPayout(positionId);
+        uint256 expectedPayout = market.previewPayout(BOB, positionId);
 
         vm.prank(BOB);
         uint256 payout = market.closePosition(positionId);
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
 
         assertEq(position.state, PositionLib.POSITION_CLOSED_STATE_TAG);
         assertEq(payout, expectedPayout);
@@ -1298,12 +1306,12 @@ contract MarketTest is Test {
 
         for (uint256 i; i < numberOfPositions; ++i) {
             uint256 positionId = positionIds[i];
-            uint256 expectedPayout = market.previewPayout(positionId);
+            uint256 expectedPayout = market.previewPayout(BOB, positionId);
 
             vm.prank(BOB);
             uint256 payout = market.closePosition(positionId);
 
-            PositionLib.Position memory position = market.positions(positionId);
+            PositionLib.Position memory position = market.getPosition(BOB, positionId);
 
             assertEq(position.state, PositionLib.POSITION_CLOSED_STATE_TAG);
             assertEq(payout, expectedPayout);
@@ -1328,7 +1336,7 @@ contract MarketTest is Test {
         uint256 positionId = market.openPosition(100e18, 0);
         vm.stopPrank();
 
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
         uint256 expectedFee = FixedPointMathLib.mulWadUp(100e18, openPositionFee);
         uint256 bobBalanceAfter = superToken.balanceOf(BOB);
 
@@ -1352,7 +1360,7 @@ contract MarketTest is Test {
         superToken.approve(address(market), type(uint256).max);
 
         uint256 positionId = market.openPosition(100e18, 0);
-        PositionLib.Position memory position = market.positions(positionId);
+        PositionLib.Position memory position = market.getPosition(BOB, positionId);
 
         uint256 bobBalanceBefore = superToken.balanceOf(BOB);
         uint256 expectedFee = FixedPointMathLib.mulWadUp(100e18, closePositionFee);
@@ -1475,5 +1483,42 @@ contract MarketTest is Test {
         vm.prank(ALICE);
         vm.expectRevert();
         market.withdrawAccruedFees(ALICE);
+    }
+
+    function test_GetPositionsByOwner() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.startPrank(BOB);
+
+        uint256 positionId1 = market.openPosition(100e18, 0);
+        uint256 positionId2 = market.openPosition(200e18, 0);
+        vm.stopPrank();
+
+        PositionLib.Position[] memory bobPositions = market.getPositions(BOB);
+        assertEq(bobPositions.length, 2);
+        assertEq(bobPositions[0].owner, BOB);
+        assertEq(bobPositions[0].notional, 100e18);
+        assertEq(bobPositions[1].owner, BOB);
+        assertEq(bobPositions[1].notional, 200e18);
+    }
+
+    function test_GetPositionsByOwner_Paginated() public assertNotJailed {
+        vm.prank(ALICE);
+        market.deposit(1000e18, ALICE);
+
+        vm.startPrank(BOB);
+        for (uint256 i = 0; i < 30; i++) {
+            market.openPosition(10e18, 0);
+        }
+        vm.stopPrank();
+
+        PositionLib.Position[] memory bobPositionsPage1 = market.getPositions(BOB, 0, 10);
+        PositionLib.Position[] memory bobPositionsPage2 = market.getPositions(BOB, 10, 20);
+        PositionLib.Position[] memory bobPositionsPage3 = market.getPositions(BOB, 20, 30);
+
+        assertEq(bobPositionsPage1.length, 10);
+        assertEq(bobPositionsPage2.length, 10);
+        assertEq(bobPositionsPage3.length, 10);
     }
 }

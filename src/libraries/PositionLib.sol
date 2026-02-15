@@ -18,8 +18,10 @@ library PositionLib {
         address owner;
         uint256 notional;
         uint256 openedAt;
+        uint256 closedAt;
         uint256 strikePrice;
         int96 flowRate;
+        uint256 profit;
         bytes4 state;
     }
 

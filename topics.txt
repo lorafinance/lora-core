@@ -1,0 +1,8 @@
+PositionOpened(uint256,address,uint256,uint256,uint256,int96,uint256)
+0x1efcd530c0bb11babe9208908c88a2f720a454abac68aaad351bf71fd1f6dcb0
+
+PositionClosed(uint256,address,uint256,uint256)
+0x3120c845c5d2c39308641201562a412527c1e7aff294f09c0c936f1c60a1b067
+
+UserLiquidated(address,uint256)
+0xe538b9438650b40b382a773f4b71a35129a6b330599b42ed9b50492847972fa6

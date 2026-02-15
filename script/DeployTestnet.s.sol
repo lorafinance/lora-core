@@ -19,12 +19,12 @@ contract DeployScript is Script {
     using SafeTransferLib for address;
 
     // APR → per-second WAD = APR / 31,536,000 * 1e18
-    uint256 constant JRM_BASE_PER_SECOND = 6_341_958_396; //  ~20% APR
-    uint256 constant JRM_SLOPER_1_PER_SECOND = 7_927_447_995; //  +25% APR across 0 → kink
-    uint256 constant JRM_SLOPE_2_PER_SECOND = 95_129_375_951; //  +300% APR across kink → 1
-    uint256 constant JRM_MIN_PER_SECOND = 1_585_489_599; //  ~5% APR floor
-    uint256 constant JRM_MAX_PER_SECOND = 63_419_583_967; //  ~200% APR cap
-    uint256 constant JRM_KINK = 0.8e18; //  80% utilization
+    uint256 constant JRM_BASE_PER_SECOND = 15_854_895_991; // ~50% APR
+    uint256 constant JRM_SLOPER_1_PER_SECOND = 15_854_895_991; // +50% APR across 0 → kink
+    uint256 constant JRM_SLOPE_2_PER_SECOND = 79_274_479_959; // +250% APR across kink → 1
+    uint256 constant JRM_MIN_PER_SECOND = 3_170_979_198; // ~10% APR floor
+    uint256 constant JRM_MAX_PER_SECOND = 63_419_583_967; // ~200% APR cap
+    uint256 constant JRM_KINK = 0.7e18; // 70% utilization
 
     uint256 constant FAUCET_MINT_AMOUNT = 0.1 ether;
     uint256 constant FAUCET_COOLDOWN = 1 days;
@@ -32,10 +32,10 @@ contract DeployScript is Script {
     uint256 constant SO_PRICE_FRESHNESS_THRESHOLD = 10 seconds * 1_000_000; // microseconds
 
     // assuming asset has 18 decimals
-    uint256 constant MARKET_BUFFER = 0.1e18; // 10% buffer; protects solvency on withdrawals
-    uint256 constant MARKET_CAP = 10_000e18; // Market cap for deposits
-    uint256 constant MARKET_OTM_HALF = 0.35e18; // OTM discount h: m(δ) = h / (h + δ)
-    uint256 constant MARKET_WARM_UP_PERIOD = 15 minutes;
+    uint256 constant MARKET_BUFFER = 0.25e18; // 25% buffer
+    uint256 constant MARKET_OTM_HALF = 0.15e18; // OTM discount h: m(δ) = h / (h + δ)
+    uint256 constant MARKET_WARM_UP_PERIOD = 15 minutes; // 15 minutes
+    uint256 constant MARKET_CAP = 100_000e18; // Market cap for deposits
     uint256 constant MARKET_FEE = 0; // 0.1% fee
 
     uint256 constant INITIAL_LIQUIDITY = 100_000e18;

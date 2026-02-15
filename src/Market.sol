@@ -202,15 +202,18 @@ contract Market is
         (uint256 spotPrice,) = $.priceOracle.getFreshPrice();
         uint256 strikePrice = delta_ > 0 ? spotPrice + FixedPointMathLib.mulWad(spotPrice, delta_) : spotPrice;
 
-        uint256 positionId = ++$.totalPositions;
-        $.positions[positionId] = PositionLib.Position({
+        uint256 positionIndex = $.positions[msg.sender].length;
+        PositionLib.Position memory newPosition = PositionLib.Position({
             owner: msg.sender,
             notional: notional_,
             openedAt: block.timestamp,
+            closedAt: 0,
             strikePrice: strikePrice,
             flowRate: flowRate,
+            profit: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
+        $.positions[msg.sender].push(newPosition);
 
         $.lockedNotional += notional_;
         $.userLockedNotional[msg.sender] += notional_;
@@ -223,18 +226,18 @@ contract Market is
             revert FailedToOpenPosition(notional_, delta_);
         }
 
-        emit PositionOpened(positionId, msg.sender, notional_, delta_, strikePrice, flowRate, block.timestamp);
+        emit PositionOpened(positionIndex, msg.sender, notional_, delta_, strikePrice, flowRate, block.timestamp);
 
-        return positionId;
+        return positionIndex;
     }
 
     /// @inheritdoc IMarket
-    function closePosition(uint256 positionId_) external override nonReentrant returns (uint256) {
+    function closePosition(uint256 positionIndex_) external override nonReentrant returns (uint256) {
         MarketStorage storage $ = _getMarketStorage();
-        PositionLib.Position storage position = $.positions[positionId_];
+        PositionLib.Position storage position = $.positions[msg.sender][positionIndex_];
 
         if (position.owner == address(0)) {
-            revert PositionNotFound(positionId_);
+            revert PositionNotFound(positionIndex_);
         }
         if (position.owner != msg.sender) {
             revert OnlyPositionOwner(msg.sender, position.owner);
@@ -243,7 +246,7 @@ contract Market is
             position.state != PositionLib.POSITION_OPEN_STATE_TAG
                 || position.openedAt < $.lastFlowLiquidationTimestamp[msg.sender]
         ) {
-            revert PositionNotOpen(positionId_);
+            revert PositionNotOpen(positionIndex_);
         }
 
         PositionLib.MarketSnapshot memory snapshot = PositionLib.MarketSnapshot({
@@ -259,6 +262,9 @@ contract Market is
         uint256 payout = PositionLib.calculatePayout(snapshot, position, spotPrice, $.priceOracle.decimals());
 
         position.state = PositionLib.POSITION_CLOSED_STATE_TAG;
+        position.closedAt = block.timestamp;
+        position.profit = payout;
+
         $.lockedNotional -= position.notional;
         $.userLockedNotional[msg.sender] -= position.notional;
         $.userFlowRate[msg.sender] -= position.flowRate;
@@ -267,14 +273,14 @@ contract Market is
 
         bool success = ISuperToken(asset()).flowFrom(msg.sender, address(this), $.userFlowRate[msg.sender]);
         if (!success) {
-            revert FailedToClosePosition(positionId_);
+            revert FailedToClosePosition(positionIndex_);
         }
 
         if (payout > 0) {
             asset().safeTransfer(msg.sender, payout);
         }
 
-        emit PositionClosed(positionId_, msg.sender, payout, block.timestamp);
+        emit PositionClosed(positionIndex_, msg.sender, payout, block.timestamp);
 
         return payout;
     }
@@ -350,9 +356,96 @@ contract Market is
     /*=========================== View Functions =========================*/
 
     /// @inheritdoc IMarket
-    function positions(uint256 positionId_) external view override returns (PositionLib.Position memory) {
+    function getPositions(address user_) external view override returns (PositionLib.Position[] memory) {
         MarketStorage storage $ = _getMarketStorage();
-        PositionLib.Position memory position = $.positions[positionId_];
+        PositionLib.Position[] memory rawPositions = $.positions[user_];
+        PositionLib.Position[] memory result = new PositionLib.Position[](rawPositions.length);
+
+        for (uint256 i = 0; i < rawPositions.length; i++) {
+            PositionLib.Position memory position = rawPositions[i];
+
+            bytes4 state = position.state;
+            if (
+                state == PositionLib.POSITION_OPEN_STATE_TAG
+                    && position.openedAt < $.lastFlowLiquidationTimestamp[position.owner]
+            ) {
+                state = PositionLib.POSITION_LIQUIDATED_STATE_TAG;
+            }
+
+            result[i] = PositionLib.Position({
+                owner: position.owner,
+                notional: position.notional,
+                flowRate: position.flowRate,
+                openedAt: position.openedAt,
+                closedAt: position.closedAt,
+                strikePrice: position.strikePrice,
+                profit: position.profit,
+                state: state
+            });
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IMarket
+    function getPositions(address user_, uint256 startIndex_, uint256 endIndex_)
+        external
+        view
+        override
+        returns (PositionLib.Position[] memory)
+    {
+        MarketStorage storage $ = _getMarketStorage();
+        PositionLib.Position[] memory rawPositions = $.positions[user_];
+
+        if (rawPositions.length == 0) {
+            return new PositionLib.Position[](0);
+        }
+
+        if (endIndex_ > rawPositions.length) {
+            endIndex_ = rawPositions.length;
+        }
+
+        if (startIndex_ >= endIndex_) {
+            revert InvalidPositionIndex(startIndex_, endIndex_);
+        }
+
+        PositionLib.Position[] memory result = new PositionLib.Position[](endIndex_ - startIndex_);
+
+        for (uint256 i = startIndex_; i < endIndex_; i++) {
+            PositionLib.Position memory position = rawPositions[i];
+
+            bytes4 state = position.state;
+            if (
+                state == PositionLib.POSITION_OPEN_STATE_TAG
+                    && position.openedAt < $.lastFlowLiquidationTimestamp[position.owner]
+            ) {
+                state = PositionLib.POSITION_LIQUIDATED_STATE_TAG;
+            }
+
+            result[i - startIndex_] = PositionLib.Position({
+                owner: position.owner,
+                notional: position.notional,
+                flowRate: position.flowRate,
+                openedAt: position.openedAt,
+                closedAt: position.closedAt,
+                strikePrice: position.strikePrice,
+                profit: position.profit,
+                state: state
+            });
+        }
+
+        return result;
+    }
+
+    /// @inheritdoc IMarket
+    function getPosition(address user_, uint256 positionIndex_)
+        external
+        view
+        override
+        returns (PositionLib.Position memory)
+    {
+        MarketStorage storage $ = _getMarketStorage();
+        PositionLib.Position memory position = $.positions[user_][positionIndex_];
 
         bytes4 state = position.state;
         if (
@@ -367,7 +460,9 @@ contract Market is
             notional: position.notional,
             flowRate: position.flowRate,
             openedAt: position.openedAt,
+            closedAt: position.closedAt,
             strikePrice: position.strikePrice,
+            profit: position.profit,
             state: state
         });
     }
@@ -388,9 +483,9 @@ contract Market is
     }
 
     /// @inheritdoc IMarket
-    function previewPayout(uint256 positionId_) external view returns (uint256) {
+    function previewPayout(address user_, uint256 positionIndex_) external view returns (uint256) {
         MarketStorage storage $ = _getMarketStorage();
-        PositionLib.Position memory position = $.positions[positionId_];
+        PositionLib.Position memory position = $.positions[user_][positionIndex_];
 
         if (position.owner == address(0)) {
             return 0;
@@ -425,9 +520,9 @@ contract Market is
     }
 
     /// @inheritdoc IMarket
-    function totalPositions() external view override returns (uint256) {
+    function totalPositions(address user_) external view override returns (uint256) {
         MarketStorage storage $ = _getMarketStorage();
-        return $.totalPositions;
+        return $.positions[user_].length;
     }
 
     /// @inheritdoc IMarket

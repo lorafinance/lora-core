@@ -83,8 +83,10 @@ contract PositionLibTest is Test {
             owner: address(this),
             notional: 100e18,
             openedAt: block.timestamp - mockSnapshot.warmUpPeriod,
+            closedAt: 0,
             strikePrice: 2000e18,
             flowRate: int96(0),
+            profit: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 
@@ -99,8 +101,10 @@ contract PositionLibTest is Test {
             owner: address(this),
             notional: 50e18,
             openedAt: block.timestamp - mockSnapshot.warmUpPeriod,
+            closedAt: 0,
             strikePrice: 2000e8,
             flowRate: int96(0),
+            profit: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 
@@ -117,8 +121,10 @@ contract PositionLibTest is Test {
             owner: address(this),
             notional: 100e18,
             openedAt: block.timestamp - halfWarmup,
+            closedAt: 0,
             strikePrice: 2000e18,
             flowRate: int96(0),
+            profit: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 

@@ -11,7 +11,7 @@ import {PositionLib} from "src/libraries/PositionLib.sol";
 /// @author Lora Finance
 interface IMarket is IMarketGuard, IMarketFeePolicy {
     event PositionOpened(
-        uint256 indexed id,
+        uint256 indexed index,
         address indexed user,
         uint256 notional,
         uint256 delta,
@@ -19,9 +19,10 @@ interface IMarket is IMarketGuard, IMarketFeePolicy {
         int96 flowRate,
         uint256 timestamp
     );
-    event PositionClosed(uint256 indexed id, address indexed user, uint256 profit, uint256 timestamp);
+    event PositionClosed(uint256 indexed index, address indexed user, uint256 profit, uint256 timestamp);
     event UserLiquidated(address indexed user, uint256 timestamp);
 
+    error InvalidPositionIndex(uint256 startIndex, uint256 endIndex);
     error NotionalZero();
     error FlowRateZero();
     error FlowRateTooHigh();
@@ -70,13 +71,13 @@ interface IMarket is IMarketGuard, IMarketFeePolicy {
     /// @notice Open a new position with the specified notional and delta
     /// @param notional_ The notional amount for the position
     /// @param delta_ The delta for the position in WAD (1e18) where 1e18 = 100%
-    /// @return positionId_ The ID of the newly opened position
-    function openPosition(uint256 notional_, uint256 delta_) external returns (uint256 positionId_);
+    /// @return positionIndex_ The index of the newly opened position for the caller
+    function openPosition(uint256 notional_, uint256 delta_) external returns (uint256 positionIndex_);
 
-    /// @notice Close an existing position by its ID
-    /// @param positionId_ The ID of the position to close
+    /// @notice Close an existing position by its index for the caller
+    /// @param positionIndex_ The index of the position to close
     /// @return payout_ The payout amount to the position owner upon closing
-    function closePosition(uint256 positionId_) external returns (uint256 payout_);
+    function closePosition(uint256 positionIndex_) external returns (uint256 payout_);
 
     /// @notice Get the rate model used by the market
     /// @return rateModel The rate model contract
@@ -86,9 +87,10 @@ interface IMarket is IMarketGuard, IMarketFeePolicy {
     /// @return priceOracle The price oracle contract
     function priceOracle() external view returns (ISentinelOracle);
 
-    /// @notice Get the total number of positions in the market
-    /// @return totalPositions The total number of positions
-    function totalPositions() external view returns (uint256);
+    /// @notice Get the total number of positions for a specific user
+    /// @param user_ The address of the user
+    /// @return totalPositions The total number of positions for the user
+    function totalPositions(address user_) external view returns (uint256);
 
     /// @notice Get the total locked notional in the market
     /// @return lockedNotional The total locked notional amount
@@ -110,10 +112,26 @@ interface IMarket is IMarketGuard, IMarketFeePolicy {
     /// @return warmUpPeriod The warm-up period in seconds
     function warmUpPeriod() external view returns (uint256);
 
-    /// @notice Get details of a specific position by its ID
-    /// @param positionId_ The ID of the position to retrieve
-    /// @return position The position details
-    function positions(uint256 positionId_) external view returns (PositionLib.Position memory);
+    /// @notice Get the details of a specific position by its index for a user
+    /// @param user_ The address of the user
+    /// @param positionIndex_ The index of the position to retrieve
+    /// @return position The details of the specified position
+    function getPosition(address user_, uint256 positionIndex_) external view returns (PositionLib.Position memory);
+
+    /// @notice Get the number of positions for a specific user
+    /// @param user_ The address of the user
+    /// @return positions_ The positions of the user
+    function getPositions(address user_) external view returns (PositionLib.Position[] memory);
+
+    /// @notice Get the positions of a specific user by pagination
+    /// @param user_ The address of the user
+    /// @param startIndex_ The starting index for pagination (inclusive)
+    /// @param endIndex_ The ending index for pagination (exclusive)
+    /// @return positions_ The positions of the user within the specified range
+    function getPositions(address user_, uint256 startIndex_, uint256 endIndex_)
+        external
+        view
+        returns (PositionLib.Position[] memory);
 
     /// @notice Preview the flow rate for a given notional and delta
     /// @param notional_ The notional amount
@@ -121,8 +139,9 @@ interface IMarket is IMarketGuard, IMarketFeePolicy {
     /// @return flowRate The previewed flow rate
     function previewFlowRate(uint256 notional_, uint256 delta_) external view returns (int96);
 
-    /// @notice Preview the payout for a given position ID
-    /// @param positionId_ The ID of the position
+    /// @notice Preview the payout for a given position index
+    /// @param user_ The address of the user
+    /// @param positionIndex_ The index of the position
     /// @return payout The previewed payout amount
-    function previewPayout(uint256 positionId_) external view returns (uint256);
+    function previewPayout(address user_, uint256 positionIndex_) external view returns (uint256);
 }
