@@ -15,12 +15,14 @@ library PositionLib {
     bytes4 constant POSITION_LIQUIDATED_STATE_TAG = bytes4(keccak256("Lora.Position.liquidated"));
 
     struct Position {
+        uint256 index;
         address owner;
         uint256 notional;
         uint256 openedAt;
         uint256 closedAt;
         uint256 strikePrice;
         int96 flowRate;
+        uint256 payout;
         uint256 profit;
         bytes4 state;
     }

@@ -80,6 +80,7 @@ contract PositionLibTest is Test {
 
     function testCalculatePayout_Basic() public view {
         PositionLib.Position memory p = PositionLib.Position({
+            index: 0,
             owner: address(this),
             notional: 100e18,
             openedAt: block.timestamp - mockSnapshot.warmUpPeriod,
@@ -87,6 +88,7 @@ contract PositionLibTest is Test {
             strikePrice: 2000e18,
             flowRate: int96(0),
             profit: 0,
+            payout: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 
@@ -98,6 +100,7 @@ contract PositionLibTest is Test {
 
     function testCalculatePayout_RescalesOracleDecimals() public view {
         PositionLib.Position memory p = PositionLib.Position({
+            index: 0,
             owner: address(this),
             notional: 50e18,
             openedAt: block.timestamp - mockSnapshot.warmUpPeriod,
@@ -105,6 +108,7 @@ contract PositionLibTest is Test {
             strikePrice: 2000e8,
             flowRate: int96(0),
             profit: 0,
+            payout: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 
@@ -118,6 +122,7 @@ contract PositionLibTest is Test {
         uint256 halfWarmup = mockSnapshot.warmUpPeriod / 2;
 
         PositionLib.Position memory p = PositionLib.Position({
+            index: 0,
             owner: address(this),
             notional: 100e18,
             openedAt: block.timestamp - halfWarmup,
@@ -125,6 +130,7 @@ contract PositionLibTest is Test {
             strikePrice: 2000e18,
             flowRate: int96(0),
             profit: 0,
+            payout: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
 

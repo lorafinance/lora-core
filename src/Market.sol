@@ -204,12 +204,14 @@ contract Market is
 
         uint256 positionIndex = $.positions[msg.sender].length;
         PositionLib.Position memory newPosition = PositionLib.Position({
+            index: positionIndex,
             owner: msg.sender,
             notional: notional_,
             openedAt: block.timestamp,
             closedAt: 0,
             strikePrice: strikePrice,
             flowRate: flowRate,
+            payout: 0,
             profit: 0,
             state: PositionLib.POSITION_OPEN_STATE_TAG
         });
@@ -263,7 +265,8 @@ contract Market is
 
         position.state = PositionLib.POSITION_CLOSED_STATE_TAG;
         position.closedAt = block.timestamp;
-        position.profit = payout;
+        position.payout = payout;
+        position.profit = payout > 0 ? spotPrice - position.strikePrice : 0;
 
         $.lockedNotional -= position.notional;
         $.userLockedNotional[msg.sender] -= position.notional;
@@ -373,12 +376,14 @@ contract Market is
             }
 
             result[i] = PositionLib.Position({
+                index: position.index,
                 owner: position.owner,
                 notional: position.notional,
                 flowRate: position.flowRate,
                 openedAt: position.openedAt,
                 closedAt: position.closedAt,
                 strikePrice: position.strikePrice,
+                payout: position.payout,
                 profit: position.profit,
                 state: state
             });
@@ -423,12 +428,14 @@ contract Market is
             }
 
             result[i - startIndex_] = PositionLib.Position({
+                index: position.index,
                 owner: position.owner,
                 notional: position.notional,
                 flowRate: position.flowRate,
                 openedAt: position.openedAt,
                 closedAt: position.closedAt,
                 strikePrice: position.strikePrice,
+                payout: position.payout,
                 profit: position.profit,
                 state: state
             });
@@ -456,12 +463,14 @@ contract Market is
         }
 
         return PositionLib.Position({
+            index: position.index,
             owner: position.owner,
             notional: position.notional,
             flowRate: position.flowRate,
             openedAt: position.openedAt,
             closedAt: position.closedAt,
             strikePrice: position.strikePrice,
+            payout: position.payout,
             profit: position.profit,
             state: state
         });
